@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # TaskFlow Teams — Séance 1 : Maquette statique typée
 
 Tableau de suivi de tâches (style Kanban) en **React + TypeScript + Tailwind CSS v4**, construit avec **Vite**.
@@ -105,6 +104,3 @@ Le fichier `.gitignore` exclut déjà `node_modules` et `dist`.
 - [x] `npm run build` sans erreur, aucun `any`
 - [x] Props typées par interface, `key = id`
 - [ ] Capture d'écran dans le README (à ajouter : `docs/capture.png`)
-=======
-# TaskFlow-Teams
->>>>>>> 4cab3eae1583bf51b173fac3f36fad1d783ab818
