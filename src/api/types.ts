@@ -15,3 +15,6 @@ export interface Task {
   /** Date d'échéance au format ISO « AAAA-MM-JJ ». */
   dueDate: string
 }
+
+/** Données saisies dans le formulaire : une tâche sans `id` ni `status` (le Board les ajoute). */
+export type NewTask = Omit<Task, 'id' | 'status'>

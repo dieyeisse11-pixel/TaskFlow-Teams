@@ -1,7 +1,10 @@
-# TaskFlow Teams — Séance 1 : Maquette statique typée
+# TaskFlow Teams — Séances 1 et 2
 
 Tableau de suivi de tâches (style Kanban) en **React + TypeScript + Tailwind CSS v4**, construit avec **Vite**.
-Cette séance pose le projet et les composants de base, **sans état** (pas de `useState`, pas d'appel réseau).
+
+- **Séance 1** : maquette statique typée (composants de base, sans état).
+- **Séance 2** : board interactif avec un état local immuable (formulaire, statuts, suppression, statistiques, recherche).
+  Voir la section « Séance 2 » plus bas.
 
 ## Lancer le projet
 
@@ -14,9 +17,11 @@ npm run build    # vérification TypeScript + build de production
 ## Capture d'écran
 
 > **À faire :** lance `npm run dev`, ouvre la page, fais une capture d'écran, enregistre-la dans `docs/capture.png`.
-> Elle s'affichera ci-dessous.
+> Pour la séance 2, enregistre une deuxième capture dans `docs/capture-seance2.png`. Elles s'afficheront ci-dessous.
 
 ![Capture d'écran de TaskFlow Teams](docs/capture.png)
+
+![Capture d'écran séance 2](docs/capture-seance2.png)
 
 ## Structure du projet
 
@@ -25,16 +30,20 @@ src/
 ├── api/
 │   └── types.ts          # Types : Task, TaskStatus, Priority
 ├── data/
-│   └── mockTasks.ts      # 8 tâches de démonstration
+│   ├── mockTasks.ts      # 8 tâches de démonstration (état initial)
+│   └── options.ts        # Statuts, priorités et gardes de type   [séance 2]
 ├── utils/
-│   └── date.ts           # isOverdue() et formatDate()
+│   └── date.ts           # todayISO(), isOverdue(), formatDate()
 ├── components/
 │   ├── Header.tsx        # Titre de l'application
-│   ├── Board.tsx         # Les 3 colonnes, filtre les tâches par statut
+│   ├── Board.tsx         # ÉTAT des tâches (useState) + les 3 colonnes
 │   ├── Column.tsx        # Une colonne (titre, compteur, children)
-│   ├── TaskCard.tsx      # Une carte de tâche
-│   └── PriorityBadge.tsx # Pastille de priorité
-├── App.tsx               # Assemble Header + Board
+│   ├── TaskCard.tsx      # Une carte (+ changement de statut, suppression)
+│   ├── PriorityBadge.tsx # Pastille de priorité
+│   ├── TaskForm.tsx      # Formulaire contrôlé avec validation    [séance 2]
+│   ├── TaskStats.tsx     # Total, terminées, avancement, retard   [séance 2]
+│   └── SearchBar.tsx     # Recherche par titre                    [séance 2]
+├── App.tsx               # Assemble Header + Board (Board ne reçoit plus de props)
 ├── main.tsx              # Point d'entrée
 └── index.css             # Import de Tailwind
 ```
@@ -86,12 +95,84 @@ Une tâche est en retard si elle n'est **pas terminée** et que son échéance e
 Comme les dates sont au format `AAAA-MM-JJ`, la comparaison de chaînes fonctionne correctement.
 `TaskCard` affiche le badge seulement si `isOverdue(task)` est vrai.
 
+## Séance 2 — Board interactif local
+
+### Les 5 objectifs et où les trouver
+
+| Objectif | Où dans le code |
+|---|---|
+| 1. Tâches dans un `useState` du Board (état remonté) | `Board.tsx` : `useState<Task[]>(mockTasks)` |
+| 2. `TaskForm` contrôlé (titre ≥ 3 caractères, priorité, description, échéance non passée) | `TaskForm.tsx` |
+| 3. Changement de statut et suppression après confirmation | `TaskCard.tsx` (menu et bouton) + `handleStatusChange` et `handleDeleteTask` dans `Board.tsx` |
+| 4. `TaskStats` : total, terminées, % d'avancement, en retard | `TaskStats.tsx` |
+| 5. Recherche par titre, insensible à la casse | `SearchBar.tsx` + `visibleTasks` dans `Board.tsx` |
+
+### Notions à comprendre
+
+**État remonté (lifting state up).** Les tâches sont utilisées par plusieurs composants (colonnes, statistiques, formulaire).
+On les place donc dans leur plus proche parent commun, le `Board`. Les enfants reçoivent des données par les props et
+« remontent » leurs actions par des callbacks. Ainsi, il n'y a qu'une seule source de vérité.
+
+**Immutabilité : aucune mutation d'état.** React ne détecte un changement que si on lui donne un **nouvel** objet ou tableau.
+On n'utilise donc jamais `push`, `splice` ni `tasks[0].status = ...`, seulement `map`, `filter` et le spread `...` :
+
+```ts
+// Ajouter
+setTasks((prev) => [...prev, { ...newTask, id: nextId, status: 'todo' }])
+// Modifier : on copie seulement la tâche concernée
+setTasks((prev) => prev.map((task) => (task.id === id ? { ...task, status } : task)))
+// Supprimer
+setTasks((prev) => prev.filter((task) => task.id !== id))
+```
+
+**Valeurs dérivées : ni `useState` ni `useEffect`.** Ce qui peut se calculer à partir de l'état ne doit pas être stocké dans un
+deuxième état (il risquerait d'être désynchronisé). On le recalcule à chaque rendu :
+- la liste filtrée : `tasks.filter((t) => t.title.toLowerCase().includes(query))` ;
+- les statistiques, dans `TaskStats` : `done`, `overdue` et `progress` sont de simples constantes ;
+- les erreurs du formulaire : la fonction `validate(values)` les calcule depuis les valeurs saisies.
+
+Il y a quand même des `useState` pour ce qui est **saisi** par l'utilisateur : le texte de la recherche, les champs du
+formulaire. Ce ne sont pas des valeurs dérivées.
+
+**Formulaire contrôlé.** Chaque champ a `value={...}` et `onChange={...}` : c'est React qui possède la valeur, pas le navigateur.
+Les erreurs s'affichent après une première tentative d'envoi.
+
+**Callbacks nommés `onXxx`.** Les *props* qui reçoivent une fonction s'appellent `onAddTask`, `onStatusChange`, `onDelete`,
+`onSearchChange`. Les fonctions définies dans le composant s'appellent `handleXxx`.
+
+**Gardes de type (`isTaskStatus`, `isPriority`).** `event.target.value` est un `string`. Pour le convertir en `TaskStatus`
+sans `any` ni `as`, on vérifie d'abord sa valeur avec une fonction `value is TaskStatus`.
+
+**Confirmation de suppression.** `window.confirm(...)` ouvre une fenêtre Oui/Non. Si on clique sur Annuler, la fonction s'arrête
+avec `return` et rien n'est supprimé.
+
+### Critères de validation (séance 2)
+
+- [x] Aucune mutation d'état (`map`, `filter`, spread uniquement)
+- [x] Statistiques et liste filtrée dérivées (aucun `useState` ni `useEffect` pour elles)
+- [x] Callbacks nommés `onXxx`
+- [x] `npm run build` sans erreur, aucun `any`
+- [ ] Capture d'écran de la séance 2 (à ajouter : `docs/capture-seance2.png`)
+
+### Test rapide à faire à la main
+
+1. Clique sur « Ajouter la tâche » sans rien remplir : deux messages d'erreur apparaissent.
+2. Saisis un titre de 2 lettres, ou une date passée : les erreurs restent.
+3. Saisis un titre valide et une date future : la tâche arrive dans « À faire » et le total monte.
+4. Change son statut avec le menu de la carte : le compteur « Terminées » et le pourcentage changent.
+5. Tape `VITE` dans la recherche : seule la tâche « Installer le projet Vite » reste (la casse est ignorée).
+6. Clique sur « Supprimer », puis Annuler : rien ne change. Recommence et confirme : la tâche disparaît.
+
+> Les échéances des tâches de démonstration sont des dates fixes. Au fil du temps, de plus en plus de tâches passent « en retard » :
+> c'est normal.
+
 ## Premier commit poussé
 
 ```bash
 git init
 git add .
 git commit -m "feat: maquette statique typée (séance 1)"
+# Pour la séance 2 : git add . puis git commit -m "feat: board interactif (séance 2)" puis git push
 git branch -M main
 git remote add origin https://github.com/<ton-compte>/TaskFlow-Teams.git
 git push -u origin main
