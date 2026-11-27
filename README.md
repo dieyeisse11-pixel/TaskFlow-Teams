@@ -1,18 +1,32 @@
-# TaskFlow Teams — Séances 1 et 2
+# TaskFlow Teams — Séances 1 à 3
 
 Tableau de suivi de tâches (style Kanban) en **React + TypeScript + Tailwind CSS v4**, construit avec **Vite**.
 
 - **Séance 1** : maquette statique typée (composants de base, sans état).
 - **Séance 2** : board interactif avec un état local immuable (formulaire, statuts, suppression, statistiques, recherche).
   Voir la section « Séance 2 » plus bas.
+- **Séance 3** : les données viennent d'une vraie API (**json-server**) au lieu de `mockTasks`. Chargement, erreurs, annulation
+  des requêtes, hooks personnalisés. Voir la section « Séance 3 » plus bas.
 
 ## Lancer le projet
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # vérification TypeScript + build de production
+npm run dev:all  # lance l'API (http://localhost:3001) ET le site (http://localhost:5173)
 ```
+
+Autres commandes :
+
+```bash
+npm run api        # json-server seul (port 3001)
+npm run api:slow   # json-server avec 1,5 s de délai : pratique pour tester le chargement et les race conditions
+npm run dev        # Vite seul
+npm run build      # vérification TypeScript + build de production
+npm run lint       # oxlint
+```
+
+> **Première fois :** vérifie que le fichier `.env.local` existe à la racine (il contient `VITE_API_URL=http://localhost:3001`).
+> S'il manque, copie `.env.example` vers `.env.local`. Il est ignoré par Git, d'où ce modèle.
 
 ## Capture d'écran
 
@@ -26,24 +40,35 @@ npm run build    # vérification TypeScript + build de production
 ## Structure du projet
 
 ```
+db.json                   # Base de données de json-server (12 tâches, 2 projets)   [séance 3]
+.env.local                # VITE_API_URL (ignoré par Git) ; modèle : .env.example     [séance 3]
 src/
+├── env.d.ts              # Types des variables d'environnement Vite                  [séance 3]
 ├── api/
-│   └── types.ts          # Types : Task, TaskStatus, Priority
+│   ├── types.ts          # Types : Task, TaskStatus, Priority, Project
+│   ├── http.ts           # Client fetch générique + HttpError (seul fichier avec fetch) [séance 3]
+│   └── tasksApi.ts       # getTasks, createTask, updateTaskStatus, deleteTask          [séance 3]
+├── hooks/                                                                              [séance 3]
+│   ├── useTasks.ts       # Chargement, erreur, reload(), annulation (AbortController)
+│   ├── useDebounce.ts    # Retarde une valeur (recherche)
+│   └── useDocumentTitle.ts  # Titre de l'onglet du navigateur
 ├── data/
-│   ├── mockTasks.ts      # 8 tâches de démonstration (état initial)
-│   └── options.ts        # Statuts, priorités et gardes de type   [séance 2]
+│   └── options.ts        # Statuts, priorités, projets et gardes de type
 ├── utils/
 │   └── date.ts           # todayISO(), isOverdue(), formatDate()
 ├── components/
 │   ├── Header.tsx        # Titre de l'application
-│   ├── Board.tsx         # ÉTAT des tâches (useState) + les 3 colonnes
+│   ├── Board.tsx         # Tâches via useTasks + actions API + les 3 colonnes
 │   ├── Column.tsx        # Une colonne (titre, compteur, children)
 │   ├── TaskCard.tsx      # Une carte (+ changement de statut, suppression)
 │   ├── PriorityBadge.tsx # Pastille de priorité
 │   ├── TaskForm.tsx      # Formulaire contrôlé avec validation    [séance 2]
 │   ├── TaskStats.tsx     # Total, terminées, avancement, retard   [séance 2]
-│   └── SearchBar.tsx     # Recherche par titre                    [séance 2]
-├── App.tsx               # Assemble Header + Board (Board ne reçoit plus de props)
+│   ├── SearchBar.tsx     # Recherche par titre                    [séance 2]
+│   ├── ProjectSelect.tsx # Choix du projet affiché                [séance 3]
+│   ├── LoadingState.tsx  # Indicateur de chargement               [séance 3]
+│   └── ErrorState.tsx    # Message d'erreur + bouton « Réessayer » [séance 3]
+├── App.tsx               # Header + choix du projet + Board
 ├── main.tsx              # Point d'entrée
 └── index.css             # Import de Tailwind
 ```
@@ -63,7 +88,7 @@ src/
   `dueDate` est une chaîne ISO `AAAA-MM-JJ`, facile à comparer.
 - Aucun `any` n'est utilisé dans le projet.
 
-### 3. Les données (`src/data/mockTasks.ts`)
+### 3. Les données (`src/data/mockTasks.ts`, supprimé en séance 3 : les tâches sont maintenant dans `db.json`)
 Un tableau `Task[]` de 8 tâches : **3 « À faire », 3 « En cours », 2 « Terminé »**.
 Certaines ont une date passée pour tester le badge « En retard » (y compris deux tâches terminées
 en retard, qui ne doivent **pas** avoir le badge).
@@ -101,7 +126,7 @@ Comme les dates sont au format `AAAA-MM-JJ`, la comparaison de chaînes fonction
 
 | Objectif | Où dans le code |
 |---|---|
-| 1. Tâches dans un `useState` du Board (état remonté) | `Board.tsx` : `useState<Task[]>(mockTasks)` |
+| 1. Tâches dans un `useState` du Board (état remonté) | `Board.tsx` : `useState<Task[]>(mockTasks)` (en séance 3, les tâches viennent de `useTasks`) |
 | 2. `TaskForm` contrôlé (titre ≥ 3 caractères, priorité, description, échéance non passée) | `TaskForm.tsx` |
 | 3. Changement de statut et suppression après confirmation | `TaskCard.tsx` (menu et bouton) + `handleStatusChange` et `handleDeleteTask` dans `Board.tsx` |
 | 4. `TaskStats` : total, terminées, % d'avancement, en retard | `TaskStats.tsx` |
@@ -166,6 +191,96 @@ avec `return` et rien n'est supprimé.
 > Les échéances des tâches de démonstration sont des dates fixes. Au fil du temps, de plus en plus de tâches passent « en retard » :
 > c'est normal.
 
+## Séance 3 — Branchement sur l'API
+
+Les tâches ne sont plus dans `mockTasks.ts` (supprimé) mais dans `db.json`, servi par **json-server** sur `http://localhost:3001`.
+
+### Les 5 objectifs et où les trouver
+
+| Objectif | Où dans le code |
+|---|---|
+| 1. Scripts `api` et `dev:all`, `.env.local`, `src/env.d.ts` | `package.json`, `.env.local`, `src/env.d.ts` |
+| 2. Client générique, `HttpError`, API des tâches | `src/api/http.ts`, `src/api/tasksApi.ts` |
+| 3. `useTasks(projectId)` : chargement, erreur, `reload()`, annulation | `src/hooks/useTasks.ts` |
+| 4. Création, statut, suppression via l'API puis rechargement | `runAction` dans `Board.tsx` |
+| 5. `useDocumentTitle`, `useDebounce`, focus avec `useRef` | `src/hooks/`, `Board.tsx`, `TaskForm.tsx` |
+
+### Notions à comprendre
+
+**Un seul endroit pour `fetch`.** `src/api/http.ts` est le seul fichier qui appelle `fetch`. Il ajoute l'adresse de base
+(`import.meta.env.VITE_API_URL`), envoie le JSON, vérifie `response.ok` et lève une **`HttpError`** (avec le code `status`) si le
+serveur répond 404 ou 500. Si le serveur est arrêté, `fetch` lève une `TypeError` : on la transforme en `HttpError` de statut `0`
+avec un message lisible. Les composants n'appellent jamais `fetch` : ils passent par un hook ou par `tasksApi.ts`.
+
+**Variables d'environnement Vite.** Seules les variables qui commencent par `VITE_` sont visibles dans le navigateur.
+`src/env.d.ts` déclare leur type : sans lui, `import.meta.env.VITE_API_URL` ne serait pas typé. Après avoir modifié `.env.local`,
+il faut **redémarrer** `npm run dev`.
+
+**Les verbes HTTP.** `GET /tasks?projectId=1` lit, `POST /tasks` crée, `PATCH /tasks/3` modifie **un champ** (ici le statut),
+`DELETE /tasks/3` supprime. `PUT` aurait remplacé toute la tâche.
+
+**`useTasks(projectId)` et la race condition.** Imagine que tu passes du projet 1 au projet 2 pendant que la requête du
+projet 1 est lente. Si on ne fait rien, la réponse du projet 1 peut arriver **après** celle du projet 2 et l'écraser : l'écran
+affiche alors les mauvaises tâches. La parade est un `AbortController` créé à chaque exécution de l'effet :
+
+```ts
+useEffect(() => {
+  const controller = new AbortController()
+  getTasks(projectId, controller.signal).then(...).catch(...)
+  return () => controller.abort()   // nettoyage : annule la requête devenue obsolète
+}, [projectId, key])
+```
+
+Une requête annulée lève une `AbortError` : ce n'est pas une vraie erreur, on l'ignore (`isAbortError`).
+Il y a une seconde protection : les tâches reçues sont étiquetées avec leur `projectId`, et le hook ne rend jamais celles d'un autre projet.
+
+**Valeurs dérivées dans le hook.** `loading`, `error` et `ready` sont **calculés** à partir de l'état, sans `setState` synchrone
+dans l'effet (l'analyseur de code le signale). La clé `projectId-reloadCount` identifie la requête voulue : tant qu'aucun résultat
+n'est arrivé pour cette clé, on est en chargement.
+
+**Chargement, erreur et actualisation.** Trois cas dans `Board` :
+- **Erreur de chargement** : `ErrorState` avec un bouton « Réessayer » qui appelle `reload()`.
+- **Premier chargement** (ou changement de projet) : `LoadingState`.
+- **Rechargement** après une action : les tâches restent affichées et « Actualisation… » apparaît discrètement.
+
+**Actions puis rechargement.** `runAction` exécute l'appel API, puis appelle `reload()` : on affiche **l'état réel du serveur**
+au lieu de deviner. Si l'action échoue, un bandeau « Action impossible » s'affiche (distinct de l'erreur de chargement) et le
+formulaire **conserve la saisie**. Pendant l'action, les commandes des cartes sont désactivées (`busy`).
+
+**`useDocumentTitle`.** Synchronise `document.title` avec l'état de l'application (par exemple « (5) TaskFlow Teams · TaskFlow Teams »,
+avec le nombre de tâches non terminées) et restaure l'ancien titre au démontage.
+
+**`useDebounce`.** Le champ de recherche reste réactif (il affiche chaque lettre), mais le filtre n'utilise que la valeur
+**débouncée** : il attend 300 ms après la dernière frappe. Chaque frappe relance le minuteur.
+
+**`useRef` et le focus.** `useRef<HTMLInputElement>(null)` donne un accès direct à l'`<input>` du titre. Il reçoit le focus au
+premier affichage, après une création réussie (pour enchaîner), et quand le titre est invalide.
+
+### Critères de validation (séance 3)
+
+- [x] Aucun `fetch` dans un composant (un seul `fetch`, dans `src/api/http.ts`)
+- [x] Chargement et erreur visibles (voir le test ci-dessous)
+- [x] Pas de requête obsolète qui écrase la bonne (`AbortController` + étiquette `projectId`)
+- [x] `npm run build` sans erreur, `npm run lint` sans avertissement, aucun `any`
+- [ ] Capture d'écran de la séance 3 (à ajouter : `docs/capture-seance3.png`)
+
+### Tests à faire à la main
+
+1. **Chargement** : lance `npm run api:slow` puis `npm run dev`. Recharge la page : « Chargement des tâches… » s'affiche 1,5 s.
+2. **Erreur** : arrête json-server (`Ctrl+C` dans son terminal) puis recharge la page. Le message « Serveur injoignable… » et le
+   bouton « Réessayer » apparaissent. Relance `npm run api:slow`, clique sur « Réessayer » : le tableau revient.
+3. **Race condition** : avec `api:slow`, change de projet **très vite** (Site vitrine, puis TaskFlow Teams, puis Site vitrine).
+   Ouvre l'onglet « Réseau » des outils du navigateur : les requêtes intermédiaires sont **annulées** (« canceled »).
+   À la fin, c'est toujours le dernier projet choisi qui est affiché.
+4. **Création** : l'onglet affiche le focus sur « Titre ». Ajoute une tâche : elle apparaît après le rechargement, et le focus revient sur « Titre ».
+   Regarde `db.json` : la tâche y est écrite.
+5. **Statut et suppression** : change un statut, puis supprime une tâche (avec confirmation) : les compteurs et le titre de l'onglet suivent.
+6. **Recherche** : tape vite `vite` : le filtre ne s'applique qu'environ 300 ms après la dernière lettre.
+7. **Erreur d'action** : arrête json-server **après** le chargement, puis ajoute une tâche : le bandeau « Action impossible » s'affiche et ta saisie est conservée.
+
+> `db.json` est **modifié** par json-server à chaque création, changement de statut ou suppression. Pour repartir des données
+> d'origine : `git checkout db.json` (ou remets les 12 tâches à la main).
+
 ## Premier commit poussé
 
 ```bash
@@ -173,6 +288,7 @@ git init
 git add .
 git commit -m "feat: maquette statique typée (séance 1)"
 # Pour la séance 2 : git add . puis git commit -m "feat: board interactif (séance 2)" puis git push
+# Pour la séance 3 : git add . puis git commit -m "feat: branchement sur l'API json-server (séance 3)" puis git push
 git branch -M main
 git remote add origin https://github.com/<ton-compte>/TaskFlow-Teams.git
 git push -u origin main

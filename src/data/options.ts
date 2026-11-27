@@ -1,4 +1,4 @@
-import type { Priority, TaskStatus } from '../api/types'
+import type { Priority, Project, TaskStatus } from '../api/types'
 
 /** Statuts avec leur libellé : utilisés par les colonnes et par le menu de changement de statut. */
 export const STATUSES: { value: TaskStatus; label: string }[] = [
@@ -12,6 +12,12 @@ export const PRIORITIES: { value: Priority; label: string }[] = [
   { value: 'low', label: 'Basse' },
   { value: 'medium', label: 'Moyenne' },
   { value: 'high', label: 'Haute' },
+]
+
+/** Projets proposés dans le sélecteur (leurs `id` correspondent au champ `projectId` de db.json). */
+export const PROJECTS: Project[] = [
+  { id: 1, name: 'TaskFlow Teams' },
+  { id: 2, name: 'Site vitrine' },
 ]
 
 /**

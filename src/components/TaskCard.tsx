@@ -8,9 +8,11 @@ interface TaskCardProps {
   task: Task
   onStatusChange: (id: number, status: TaskStatus) => void
   onDelete: (id: number) => void
+  /** Désactive les commandes pendant qu'une action est en cours côté serveur. */
+  disabled?: boolean
 }
 
-export default function TaskCard({ task, onStatusChange, onDelete }: TaskCardProps) {
+export default function TaskCard({ task, onStatusChange, onDelete, disabled = false }: TaskCardProps) {
   const overdue = isOverdue(task)
 
   const handleStatusChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -44,8 +46,9 @@ export default function TaskCard({ task, onStatusChange, onDelete }: TaskCardPro
         <select
           value={task.status}
           onChange={handleStatusChange}
+          disabled={disabled}
           aria-label={`Statut de la tâche ${task.title}`}
-          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs"
+          className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs disabled:opacity-50"
         >
           {STATUSES.map((status) => (
             <option key={status.value} value={status.value}>
@@ -57,7 +60,8 @@ export default function TaskCard({ task, onStatusChange, onDelete }: TaskCardPro
         <button
           type="button"
           onClick={() => onDelete(task.id)}
-          className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+          disabled={disabled}
+          className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
         >
           Supprimer
         </button>

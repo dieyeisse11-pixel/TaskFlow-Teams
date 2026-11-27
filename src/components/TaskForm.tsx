@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import type { NewTask, Priority } from '../api/types'
 import { PRIORITIES, isPriority } from '../data/options'
 import { todayISO } from '../utils/date'
 
 interface TaskFormProps {
-  onAddTask: (task: NewTask) => void
+  /** Renvoie `true` si la tâche a bien été créée : le formulaire ne se vide alors qu'en cas de succès. */
+  onAddTask: (task: NewTask) => Promise<boolean>
 }
 
 interface FormValues {
@@ -49,6 +50,15 @@ const FIELD =
 export default function TaskForm({ onAddTask }: TaskFormProps) {
   const [values, setValues] = useState<FormValues>(INITIAL_VALUES)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  // useRef : accès direct à l'élément <input> du titre, sans passer par l'état.
+  const titleRef = useRef<HTMLInputElement>(null)
+
+  // Focus automatique au premier affichage.
+  useEffect(() => {
+    titleRef.current?.focus()
+  }, [])
 
   const errors = validate(values)
   // On n'affiche les erreurs qu'après une première tentative d'envoi.
@@ -68,20 +78,31 @@ export default function TaskForm({ onAddTask }: TaskFormProps) {
     }
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitted(true)
-    if (Object.keys(errors).length > 0) return
+    if (Object.keys(errors).length > 0) {
+      // On ramène le curseur sur le titre quand c'est lui qui est invalide.
+      if (errors.title) titleRef.current?.focus()
+      return
+    }
 
-    onAddTask({
+    setSubmitting(true)
+    const created = await onAddTask({
       title: values.title.trim(),
       description: values.description.trim(),
       priority: values.priority,
       assignee: values.assignee.trim() === '' ? 'Non assigné' : values.assignee.trim(),
       dueDate: values.dueDate,
     })
-    setValues(INITIAL_VALUES)
-    setSubmitted(false)
+    setSubmitting(false)
+
+    // En cas d'échec, on garde la saisie pour que l'utilisateur puisse réessayer.
+    if (created) {
+      setValues(INITIAL_VALUES)
+      setSubmitted(false)
+      titleRef.current?.focus()
+    }
   }
 
   return (
@@ -99,6 +120,7 @@ export default function TaskForm({ onAddTask }: TaskFormProps) {
           </label>
           <input
             id="title"
+            ref={titleRef}
             type="text"
             value={values.title}
             onChange={handleTextChange('title')}
@@ -172,9 +194,10 @@ export default function TaskForm({ onAddTask }: TaskFormProps) {
 
       <button
         type="submit"
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        disabled={submitting}
+        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-60"
       >
-        Ajouter la tâche
+        {submitting ? 'Ajout en cours…' : 'Ajouter la tâche'}
       </button>
     </form>
   )
